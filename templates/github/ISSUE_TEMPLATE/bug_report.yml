@@ -4,11 +4,17 @@ labels: [bug]
 body:
   - type: textarea
     id: what
-    attributes: { label: What happened?, description: Include steps to reproduce }
-    validations: { required: true }
+    attributes:
+      label: "What happened?"
+      description: Include steps to reproduce
+    validations:
+      required: true
   - type: textarea
     id: expected
-    attributes: { label: What did you expect? }
+    attributes:
+      label: "What did you expect?"
   - type: input
     id: env
-    attributes: { label: Environment, placeholder: "production / staging / local, browser" }
+    attributes:
+      label: Environment
+      placeholder: "production / staging / local, browser"
