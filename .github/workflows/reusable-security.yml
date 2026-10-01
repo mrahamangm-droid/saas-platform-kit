@@ -1,0 +1,69 @@
+# Reusable security scanning: secret scanning (gitleaks), dependency review on PRs,
+# and CodeQL static analysis. Free for public repos; CodeQL on private repos needs
+# GitHub Advanced Security (set run-codeql: false there).
+name: reusable-security
+
+on:
+  workflow_call:
+    inputs:
+      languages:
+        description: "CodeQL languages, comma separated (e.g. javascript-typescript,python)"
+        type: string
+        default: "javascript-typescript"
+      run-codeql:
+        type: boolean
+        default: true
+      fail-on-severity:
+        description: "Dependency review threshold: low | moderate | high | critical"
+        type: string
+        default: "high"
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        run: |
+          VERSION=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks git --redact --verbose --exit-code 1 .
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: ${{ inputs.fail-on-severity }}
+          comment-summary-in-pr: on-failure
+
+  codeql:
+    name: CodeQL
+    if: inputs.run-codeql
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ inputs.languages }}
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v4

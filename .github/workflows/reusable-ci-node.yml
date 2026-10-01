@@ -1,0 +1,90 @@
+# Reusable CI for Node/TypeScript apps (Next.js, Workers, etc.)
+# Detects npm / pnpm / yarn from the lockfile and runs the scripts that exist:
+# lint, typecheck, test, build. Missing scripts are skipped, not failed.
+name: reusable-ci-node
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: "22"
+      working-directory:
+        type: string
+        default: "."
+      run-build:
+        type: boolean
+        default: true
+    secrets:
+      BUILD_ENV:
+        description: "Optional multiline KEY=VALUE pairs exported before build (public/build-time vars only)."
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then pm=pnpm; lock=pnpm-lock.yaml
+          elif [ -f yarn.lock ]; then pm=yarn; lock=yarn.lock
+          elif [ -f package-lock.json ]; then pm=npm; lock=package-lock.json
+          else echo "::error::No lockfile found. Commit package-lock.json, pnpm-lock.yaml or yarn.lock."; exit 1; fi
+          { echo "pm=$pm"; echo "lock=$lock"; } >> "$GITHUB_OUTPUT"
+
+      - if: steps.pm.outputs.pm == 'pnpm'
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ inputs.working-directory }}/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ steps.pm.outputs.pm }}
+          cache-dependency-path: ${{ inputs.working-directory }}/${{ steps.pm.outputs.lock }}
+
+      - name: Install (lockfile only)
+        run: |
+          case "${{ steps.pm.outputs.pm }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            npm)  npm ci ;;
+          esac
+
+      - name: Lint / typecheck / test
+        run: |
+          has() { node -e "process.exit(require('./package.json').scripts?.['$1'] ? 0 : 1)"; }
+          for s in lint typecheck test; do
+            if has "$s"; then echo "::group::$s"; ${{ steps.pm.outputs.pm }} run "$s"; echo "::endgroup::"
+            else echo "skip: no '$s' script"; fi
+          done
+        env:
+          CI: "true"
+
+      - name: Load build env
+        if: inputs.run-build
+        env:
+          BUILD_ENV: ${{ secrets.BUILD_ENV }}
+        run: |
+          [ -z "$BUILD_ENV" ] && exit 0
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            echo "::add-mask::${line#*=}"
+            echo "$line" >> "$GITHUB_ENV"
+          done <<< "$BUILD_ENV"
+
+      - name: Build
+        if: inputs.run-build
+        run: |
+          has() { node -e "process.exit(require('./package.json').scripts?.['$1'] ? 0 : 1)"; }
+          if has build; then ${{ steps.pm.outputs.pm }} run build; else echo "skip: no 'build' script"; fi
