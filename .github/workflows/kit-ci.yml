@@ -1,0 +1,34 @@
+# CI for this kit itself: lint every workflow and template, check shell scripts,
+# and scan for secrets.
+name: kit-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color .github/workflows/*.yml templates/github/workflows/*.yml
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+
+  security:
+    uses: ./.github/workflows/reusable-security.yml
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+      actions: read
+    with:
+      run-codeql: false

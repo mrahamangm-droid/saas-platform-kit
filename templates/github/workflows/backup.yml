@@ -1,0 +1,24 @@
+# Copy to <your-app>/.github/workflows/backup.yml
+name: backup
+
+on:
+  schedule:
+    - cron: "17 22 * * *"   # 02:17 Asia/Dubai daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    uses: mrahamangm-droid/saas-platform-kit/.github/workflows/reusable-db-backup-r2.yml@v1
+    with:
+      environment: production
+      prefix: ${{ github.event.repository.name }}
+    secrets:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}

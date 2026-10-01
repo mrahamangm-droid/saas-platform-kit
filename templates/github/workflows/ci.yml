@@ -1,0 +1,44 @@
+# Copy to <your-app>/.github/workflows/ci.yml
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: mrahamangm-droid/saas-platform-kit/.github/workflows/reusable-ci-node.yml@v1
+    with:
+      node-version: "22"
+    secrets:
+      BUILD_ENV: ${{ secrets.CI_BUILD_ENV }}
+
+  security:
+    uses: mrahamangm-droid/saas-platform-kit/.github/workflows/reusable-security.yml@v1
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+      actions: read
+    with:
+      # CodeQL is free on public repos; set false on private repos without Advanced Security.
+      run-codeql: ${{ !github.event.repository.private }}
+
+  migrations-check:
+    if: github.event_name == 'pull_request'
+    uses: mrahamangm-droid/saas-platform-kit/.github/workflows/reusable-supabase-migrations.yml@v1
+    with:
+      environment: staging
+      mode: check
+    secrets:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}

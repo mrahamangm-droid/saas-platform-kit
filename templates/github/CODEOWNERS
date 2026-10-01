@@ -1,0 +1,4 @@
+# Copy to <your-app>/.github/CODEOWNERS
+*                       @mrahamangm-droid
+/supabase/migrations/   @mrahamangm-droid
+/.github/               @mrahamangm-droid
